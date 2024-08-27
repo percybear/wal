@@ -4,14 +4,35 @@ package server
 import (
 	"context"
 
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+
 	// api "github.com/travisjeffery/proglog/api/v1"
 	api "github.com/percybear/wal/api/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
+// START: config_authorizer
 type Config struct {
-	CommitLog CommitLog
+	CommitLog  CommitLog
+	Authorizer Authorizer
 }
+
+const (
+	objectWildcard = "*"
+	produceAction  = "produce"
+	consumeAction  = "consume"
+)
+
+// END: config_authorizer
+
+// type Config struct {
+// 	CommitLog CommitLog
+// }
 
 var _ api.LogServer = (*grpcServer)(nil)
 
@@ -29,25 +50,46 @@ func newgrpcServer(config *Config) (srv *grpcServer, err error) {
 
 // END: types
 
-// START: newapi
-func NewGRPCServer(config *Config) (*grpc.Server, error) {
-	gsrv := grpc.NewServer()
+// START: newgrpcserver_before_auth
+// START: newgrpcserver
+func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	// END: newgrpcserver_before_auth
+	_ = append(opts, grpc.StreamInterceptor(
+		// opts = append(opts, grpc.StreamInterceptor(
+		grpc_middleware.ChainStreamServer(
+			grpc_auth.StreamServerInterceptor(authenticate),
+		)), grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		grpc_auth.UnaryServerInterceptor(authenticate),
+	)))
+	// START: newgrpcserver_before_auth
+	gsrv := grpc.NewServer(opts...)
 	srv, err := newgrpcServer(config)
 	if err != nil {
 		return nil, err
 	}
 
-	// api.RegisterLogServer(gsrv, srv)
-	grpc.ServiceRegistrar(gsrv).RegisterService(&api.Log_ServiceDesc, api.LogServer(srv))
+	api.RegisterLogServer(gsrv, srv)
+	// grpc.ServiceRegistrar(gsrv).RegisterService(&api.Log_ServiceDesc, api.LogServer(srv))
 
 	return gsrv, nil
 }
 
-// END: newapi
+// END: newgrpcserver
+// END: newgrpcserver_before_auth
 
 // START: request_response
+// START: produce_authorize
 func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (
 	*api.ProduceResponse, error) {
+	// START_HIGHLIGHT
+	// if err := s.Authorizer.Authorize(
+	// 	subject(ctx),
+	// 	objectWildcard,
+	// 	produceAction,
+	// ); err != nil {
+	// 	return nil, err
+	// }
+	// END_HIGHLIGHT
 	offset, err := s.CommitLog.Append(req.Record)
 	if err != nil {
 		return nil, err
@@ -55,8 +97,20 @@ func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (
 	return &api.ProduceResponse{Offset: offset}, nil
 }
 
+// END: produce_authorize
+
+// START: consume_authorize
 func (s *grpcServer) Consume(ctx context.Context, req *api.ConsumeRequest) (
 	*api.ConsumeResponse, error) {
+	// START_HIGHLIGHT
+	// if err := s.Authorizer.Authorize(
+	// 	subject(ctx),
+	// 	objectWildcard,
+	// 	consumeAction,
+	// ); err != nil {
+	// 	return nil, err
+	// }
+	// END_HIGHLIGHT
 	record, err := s.CommitLog.Read(req.Offset)
 	if err != nil {
 		return nil, err
@@ -64,6 +118,7 @@ func (s *grpcServer) Consume(ctx context.Context, req *api.ConsumeRequest) (
 	return &api.ConsumeResponse{Record: record}, nil
 }
 
+// END: consume_authorize
 // END: request_response
 
 // START: stream
@@ -122,3 +177,42 @@ type CommitLog interface {
 }
 
 // END: commitlog
+
+// START: authorizer
+type Authorizer interface {
+	Authorize(subject, object, action string) error
+}
+
+// END: authorizer
+
+// START: authenticate
+func authenticate(ctx context.Context) (context.Context, error) {
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return ctx, status.New(
+			codes.Unknown,
+			"couldn't find peer info",
+		).Err()
+	}
+
+	if peer.AuthInfo == nil {
+		return ctx, status.New(
+			codes.Unauthenticated,
+			"no transport security being used",
+		).Err()
+	}
+
+	tlsInfo := peer.AuthInfo.(credentials.TLSInfo)
+	subject := tlsInfo.State.VerifiedChains[0][0].Subject.CommonName
+	ctx = context.WithValue(ctx, subjectContextKey{}, subject)
+
+	return ctx, nil
+}
+
+func subject(ctx context.Context) string {
+	return ctx.Value(subjectContextKey{}).(string)
+}
+
+type subjectContextKey struct{}
+
+// END: authenticate

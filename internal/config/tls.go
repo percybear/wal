@@ -49,11 +49,12 @@ func SetupTLSConfig(cfg TLSConfig) (*tls.Config, error) {
 
 // START: type
 type TLSConfig struct {
-	CertFile      string
-	KeyFile       string
-	CAFile        string
-	ServerAddress string
-	Server        bool
+	InsecureSkipVerify bool
+	CertFile           string
+	KeyFile            string
+	CAFile             string
+	ServerAddress      string
+	Server             bool
 }
 
 // END: type

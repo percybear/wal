@@ -24,25 +24,26 @@ gencert:
 		-ca-key=ca-key.pem \
 		-config=test/ca-config.json \
 		-profile=client \
+		-cn="client" \
 		test/client-csr.json | cfssljson -bare client
 # END: client
 
 # START: multi_client
-	cfssl gencert \
-		-ca=ca.pem \
-		-ca-key=ca-key.pem \
-		-config=test/ca-config.json \
-		-profile=client \
-		-cn="root" \
-		test/client-csr.json | cfssljson -bare root-client
+	# cfssl gencert \
+	# 	-ca=ca.pem \
+	# 	-ca-key=ca-key.pem \
+	# 	-config=test/ca-config.json \
+	# 	-profile=client \
+	# 	-cn="root" \
+	# 	test/client-csr.json | cfssljson -bare root-client
 
-	cfssl gencert \
-		-ca=ca.pem \
-		-ca-key=ca-key.pem \
-		-config=test/ca-config.json \
-		-profile=client \
-		-cn="nobody" \
-		test/client-csr.json | cfssljson -bare nobody-client
+	# cfssl gencert \
+	# 	-ca=ca.pem \
+	# 	-ca-key=ca-key.pem \
+	# 	-config=test/ca-config.json \
+	# 	-profile=client \
+	# 	-cn="nobody" \
+	# 	test/client-csr.json | cfssljson -bare nobody-client
 # END: multi_client
 
 # START: begin
@@ -64,7 +65,7 @@ test:
 # START: auth
 test: $(CONFIG_PATH)/policy.csv $(CONFIG_PATH)/model.conf
 #: START: begin
-	go test -race ./...
+	/usr/local/go1.22.1/bin/go test -v -race ./...
 # END: auth
 
 .PHONY: compile

@@ -5,6 +5,7 @@ go 1.22.1
 require google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80
 
 require (
+	github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible // indirect
 	github.com/cloudflare/cfssl v1.6.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
@@ -30,6 +31,8 @@ require (
 )
 
 require (
+	github.com/casbin/casbin v1.9.1
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tysonmote/gommap v0.0.2
 	google.golang.org/grpc v1.62.1

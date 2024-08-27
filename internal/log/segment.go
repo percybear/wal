@@ -12,7 +12,7 @@ import (
 
 // A segment wraps the index and store types to coordinate across the two.
 // When the log appends a record, the segment needs to write the data to its store and add a new entry in the index.
-// When the log reads need to look up a entry in the index then fetch the data from the store.
+// When the log reads it needs to look up a entry in the index then fetch the data from the store.
 type segment struct {
 	store                  *store
 	index                  *index
@@ -147,6 +147,20 @@ func (s *segment) Remove() error {
 // END: remove
 
 // START: nearestmultiple
+//
+//	If multiple == 0 {
+//		return 0
+//	}
+//
+// remainder := num % multiple
+//
+//	if remainder == 0 {
+//		return num
+//	}
+//
+//	if remainder >= multiple/2 {
+//		return num + (multiple - remainder)
+//	}
 func nearestMultiple(j, k uint64) uint64 {
 	if j >= 0 {
 		return (j / k) * k
