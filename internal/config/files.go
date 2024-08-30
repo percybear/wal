@@ -16,12 +16,12 @@ var (
 
 	// END: begin
 	// START_HIGHLIGHT
-	// RootClientCertFile = configFile("client.pem")
-	// RootClientKeyFile  = configFile("client-key.pem")
-	// NobodyClientCertFile = configFile("nobody-client.pem")
-	// NobodyClientKeyFile  = configFile("nobody-client-key.pem")
-	// ACLModelFile         = configFile("model.conf")
-	// ACLPolicyFile        = configFile("policy.csv")
+	RootClientCertFile   = configFile("client.pem")
+	RootClientKeyFile    = configFile("client-key.pem")
+	NobodyClientCertFile = configFile("nobody-client.pem")
+	NobodyClientKeyFile  = configFile("nobody-client-key.pem")
+	ACLModelFile         = configFile("model.conf")
+	ACLPolicyFile        = configFile("policy.csv")
 	// END_HIGHLIGHT
 	// START: begin
 )
