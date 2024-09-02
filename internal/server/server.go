@@ -54,7 +54,7 @@ func newgrpcServer(config *Config) (srv *grpcServer, err error) {
 // START: newgrpcserver
 func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
 	// END: newgrpcserver_before_auth
-	_ = append(opts, grpc.StreamInterceptor(
+	opts = append(opts, grpc.StreamInterceptor(
 		// opts = append(opts, grpc.StreamInterceptor(
 		grpc_middleware.ChainStreamServer(
 			grpc_auth.StreamServerInterceptor(authenticate),
@@ -67,7 +67,12 @@ func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, err
 	if err != nil {
 		return nil, err
 	}
-
+	// api.RegisterLogServer(gsrv,
+	// 	Produce:       srv.Produce,
+	// 	Consume:       srv.Consume,
+	// 	ConsumeStream: srv.ConsumeStream,
+	// 	ProduceStream: srv.ProduceStream,
+	// })
 	api.RegisterLogServer(gsrv, srv)
 	// grpc.ServiceRegistrar(gsrv).RegisterService(&api.Log_ServiceDesc, api.LogServer(srv))
 
@@ -82,13 +87,13 @@ func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, err
 func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (
 	*api.ProduceResponse, error) {
 	// START_HIGHLIGHT
-	// if err := s.Authorizer.Authorize(
-	// 	subject(ctx),
-	// 	objectWildcard,
-	// 	produceAction,
-	// ); err != nil {
-	// 	return nil, err
-	// }
+	if err := s.Authorizer.Authorize(
+		subject(ctx),
+		objectWildcard,
+		produceAction,
+	); err != nil {
+		return nil, err
+	}
 	// END_HIGHLIGHT
 	offset, err := s.CommitLog.Append(req.Record)
 	if err != nil {
@@ -103,13 +108,13 @@ func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (
 func (s *grpcServer) Consume(ctx context.Context, req *api.ConsumeRequest) (
 	*api.ConsumeResponse, error) {
 	// START_HIGHLIGHT
-	// if err := s.Authorizer.Authorize(
-	// 	subject(ctx),
-	// 	objectWildcard,
-	// 	consumeAction,
-	// ); err != nil {
-	// 	return nil, err
-	// }
+	if err := s.Authorizer.Authorize(
+		subject(ctx),
+		objectWildcard,
+		consumeAction,
+	); err != nil {
+		return nil, err
+	}
 	// END_HIGHLIGHT
 	record, err := s.CommitLog.Read(req.Offset)
 	if err != nil {
@@ -210,7 +215,9 @@ func authenticate(ctx context.Context) (context.Context, error) {
 }
 
 func subject(ctx context.Context) string {
-	return ctx.Value(subjectContextKey{}).(string)
+	testCtx := ctx
+	anyValue := testCtx.Value(subjectContextKey{}).(string)
+	return anyValue
 }
 
 type subjectContextKey struct{}

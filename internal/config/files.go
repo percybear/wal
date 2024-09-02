@@ -16,8 +16,8 @@ var (
 
 	// END: begin
 	// START_HIGHLIGHT
-	RootClientCertFile   = configFile("client.pem")
-	RootClientKeyFile    = configFile("client-key.pem")
+	RootClientCertFile   = configFile("root-client.pem")
+	RootClientKeyFile    = configFile("root-client-key.pem")
 	NobodyClientCertFile = configFile("nobody-client.pem")
 	NobodyClientKeyFile  = configFile("nobody-client-key.pem")
 	ACLModelFile         = configFile("model.conf")
