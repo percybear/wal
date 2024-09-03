@@ -3,12 +3,14 @@ package server
 
 import (
 	"context"
+	"flag"
 	"io/ioutil"
 	"net"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -20,30 +22,24 @@ import (
 	"github.com/percybear/wal/internal/log"
 )
 
-// START: intro
-// func TestServer(t *testing.T) {
-// 	for scenario, fn := range map[string]func(
-// 		t *testing.T,
-// 		client api.LogClient,
-// 		config *Config,
-// 	){
-// 		"produce/consume a message to/from the log succeeeds": testProduceConsume,
-// 		"produce/consume stream succeeds":                     testProduceConsumeStream,
-// 		"consume past log boundary fails":                     testConsumePastBoundary,
-// 	} {
-// 		t.Run(
-// 			scenario,
-// 			func(t *testing.T) {
-// 				client, config, teardown := setupTest(t, nil)
-// 				defer teardown()
-// 				fn(t, client, config)
-// 			},
-// 		)
-// 	}
-// }
+// START: flag
+// imports...
 
-// END: intro
+var debug = flag.Bool("debug", false, "Enable observability for debugging.")
 
+func TestMain(m *testing.M) {
+	flag.Parse()
+	if *debug {
+		logger, err := zap.NewDevelopment()
+		if err != nil {
+			panic(err)
+		}
+		zap.ReplaceGlobals(logger)
+	}
+	os.Exit(m.Run())
+}
+
+// END: flag
 // START: func_update
 func TestServer(t *testing.T) {
 	for scenario, fn := range map[string]func(
