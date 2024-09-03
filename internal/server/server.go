@@ -10,10 +10,7 @@ import (
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/sdk/trace"
 
-	// api "github.com/travisjeffery/proglog/api/v1"
 	api "github.com/percybear/wal/api/v1"
 
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
@@ -79,6 +76,13 @@ func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, err
 	}
 	// END: logger
 
+	// Set up OpenTelemetry.
+	// Set up propagator.
+	// Set up trace provider.
+	// Set up meter provider.
+	// Set up log provider.
+	// otelShutdown, err := setupOTelSDK(ctx)
+
 	// START: metrics_traces
 	// trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	// err := view.Register(ocgrpc.DefaultServerViews...)
@@ -88,19 +92,29 @@ func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, err
 	// END: metrics_traces
 
 	// Set up OpenTelemetry exporter
-	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+
+	// Set up trace provider.
+	tp, err := NewTraceProvider()
 	if err != nil {
-		logger.Fatal("failed to initialize exporter:", zap.Error(err))
+		handleErr(err)
+		return
 	}
+	shutdownFuncs = append(shutdownFuncs, tp.Shutdown)
+	otel.SetTracerProvider(tp)
+
+	// exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+	// if err != nil {
+	// 	logger.Fatal("failed to initialize exporter:", zap.Error(err))
+	// }
 
 	// Set up OpenTelemetry tracer provider
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(exporter),
-	)
+	// tp := trace.NewTracerProvider(
+	// 	trace.WithBatcher(exporter),
+	// )
 	// defer func() { _ = tp.Shutdown(context.Background()) }()
 
 	// Set the global tracer provider
-	otel.SetTracerProvider(tp)
+	// otel.SetTracerProvider(tp)
 
 	// Set up OpenTelemetry metric exporter
 	// telemetryExporter, err := stdoutmetric.New(stdoutmetric.WithPrettyPrint())
@@ -160,6 +174,25 @@ func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, err
 
 // END: newgrpcserver
 // END: newgrpcserver_before_auth
+
+// START: newTraceProvider
+
+// func newTraceProvider() (*trace.TracerProvider, error) {
+// 	traceExporter, err := stdouttrace.New(
+// 		stdouttrace.WithPrettyPrint())
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	traceProvider := trace.NewTracerProvider(
+// 		trace.WithBatcher(traceExporter,
+// 			// Default is 5s. Set to 1s for demonstrative purposes.
+// 			trace.WithBatchTimeout(time.Second)),
+// 	)
+// 	return traceProvider, nil
+// }
+
+// END: newTraceProvider
 
 // START: request_response
 // START: produce_authorize
