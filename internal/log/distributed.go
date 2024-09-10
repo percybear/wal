@@ -18,12 +18,14 @@ import (
 	api "github.com/percybear/wal/api/v1"
 )
 
+// The DistributedLog struct represents a distributed log that is used to store and retrieve data.
 type DistributedLog struct {
-	config Config
-	log    *Log
-	raft   *raft.Raft
+	config Config     // configure the distributed log
+	log    *Log       // configure the log
+	raft   *raft.Raft // configure the raft
 }
 
+// NewDistributedLog creates a new DistributedLog instance.
 func NewDistributedLog(dataDir string, config Config) (
 	*DistributedLog,
 	error,
@@ -40,9 +42,7 @@ func NewDistributedLog(dataDir string, config Config) (
 	return l, nil
 }
 
-// END: intro
-
-// START: setup_log
+// setupLog creates the log where this server will store log entries.
 func (l *DistributedLog) setupLog(dataDir string) error {
 	logDir := filepath.Join(dataDir, "log")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
@@ -52,8 +52,6 @@ func (l *DistributedLog) setupLog(dataDir string) error {
 	l.log, err = NewLog(logDir, l.config)
 	return err
 }
-
-// END: setup_log
 
 // START: setup_raft_intro
 func (l *DistributedLog) setupRaft(dataDir string) error {
