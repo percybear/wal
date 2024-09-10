@@ -1,4 +1,5 @@
-// START: begin
+// Package log is used to store, share, and process ordered log data
+// A log is an append-only sequence of records, typically read from oldest to newest.
 package log
 
 import (
@@ -14,19 +15,20 @@ import (
 	api "github.com/percybear/wal/api/v1"
 )
 
+// A Log is a sequence of segments, the log is designed to be append-only.
+// Each segment is configured to have a maximum store and index size.
+// The active segment is swapped out when it reaches the configured size.
 type Log struct {
-	mu sync.RWMutex
+	mu sync.RWMutex // protects segments
 
-	Dir    string
-	Config Config
+	Dir    string // directory for the log
+	Config Config // configuration for the log
 
-	activeSegment *segment
-	segments      []*segment
+	activeSegment *segment   // the segment that is currently being written to
+	segments      []*segment // all segments in the log
 }
 
-// END: begin
-
-// START: newlog
+// NewLog creates a new log using the provided directory.
 func NewLog(dir string, c Config) (*Log, error) {
 	if c.Segment.MaxStoreBytes == 0 {
 		c.Segment.MaxStoreBytes = 1024
@@ -42,9 +44,7 @@ func NewLog(dir string, c Config) (*Log, error) {
 	return l, l.setup()
 }
 
-// END: newlog
-
-// START: setup
+// setup initializes a new log using the provided directory.
 func (l *Log) setup() error {
 	files, err := ioutil.ReadDir(l.Dir)
 	if err != nil {
@@ -78,9 +78,7 @@ func (l *Log) setup() error {
 	return nil
 }
 
-// END: setup
-
-// START: append
+// Append appends a record to the log, returning the newly appended record's offset.
 func (l *Log) Append(record *api.Record) (uint64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -94,9 +92,7 @@ func (l *Log) Append(record *api.Record) (uint64, error) {
 	return off, err
 }
 
-// END: append
-
-// START: read
+// Read reads the record from a given offset.
 func (l *Log) Read(off uint64) (*api.Record, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -116,9 +112,7 @@ func (l *Log) Read(off uint64) (*api.Record, error) {
 	return s.Read(off)
 }
 
-// END: read
-
-// START: newsegment
+// newSegment creates a new segment and adds it to the log.
 func (l *Log) newSegment(off uint64) error {
 	s, err := newSegment(l.Dir, off, l.Config)
 	if err != nil {
@@ -129,9 +123,7 @@ func (l *Log) newSegment(off uint64) error {
 	return nil
 }
 
-// END: newsegment
-
-// START: close
+// Close closes the log and all underlying segments.
 func (l *Log) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -143,6 +135,7 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// Remove closes the log and removes its data.
 func (l *Log) Remove() error {
 	if err := l.Close(); err != nil {
 		return err
@@ -150,6 +143,7 @@ func (l *Log) Remove() error {
 	return os.RemoveAll(l.Dir)
 }
 
+// Reset closes the log and removes its data, and then recreates it.
 func (l *Log) Reset() error {
 	if err := l.Remove(); err != nil {
 		return err
@@ -157,15 +151,14 @@ func (l *Log) Reset() error {
 	return l.setup()
 }
 
-// END: close
-
-// START: offsets
+// LowestOffset returns the lowest offset in the log.
 func (l *Log) LowestOffset() (uint64, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.segments[0].baseOffset, nil
 }
 
+// HighestOffset returns the highest offset in the log.
 func (l *Log) HighestOffset() (uint64, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -176,9 +169,9 @@ func (l *Log) HighestOffset() (uint64, error) {
 	return off - 1, nil
 }
 
-// END: offsets
-
-// START: truncate
+// Truncate truncates all segments with offsets greater than the provided offset.
+// Truncation removes the empty spaces that were left at the end of the memory map.
+// If we do not truncate the empty spaces, it stops the service from restarting properly.
 func (l *Log) Truncate(lowest uint64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -196,9 +189,8 @@ func (l *Log) Truncate(lowest uint64) error {
 	return nil
 }
 
-// END: truncate
-
 // START: reader
+// Reader returns an io.Reader which is a standard interface that is recognised by many Go libraries.
 func (l *Log) Reader() io.Reader {
 	l.mu.RLock()
 	defer l.mu.RUnlock()

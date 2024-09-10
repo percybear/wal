@@ -31,7 +31,11 @@ message ConsumeResponse {
 }
 // END: apis
 
+// START: record
 message Record {
   bytes value = 1;
   uint64 offset = 2;
+  uint64 term = 3;
+  uint32 type = 4;
 }
+// END: record
