@@ -22,7 +22,6 @@ type index struct {
 // END: begin
 
 // START: newindex
-// func newIndex(f *os.File, c Config) (*index, error) {
 func newIndex(f *os.File, c Config) (*index, error) {
 	idx := &index{
 		file: f,
