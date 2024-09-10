@@ -1,4 +1,4 @@
-// Package log is used to store, share, and process ordered log data
+// Package log is used to store, share, and process ordered log data.
 // A log is an append-only sequence of records, typically read from oldest to newest.
 package log
 

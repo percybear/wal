@@ -1,4 +1,3 @@
-// START: begin
 package log
 
 import (
