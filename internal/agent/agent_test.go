@@ -1,5 +1,4 @@
-// START: imports
-package agent
+package agent_test
 
 import (
 	"context"
@@ -11,20 +10,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	// "golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	api "github.com/percybear/wal/api/v1"
-	// "github.com/percybear/wal/internal/agent"
+	"github.com/percybear/wal/internal/agent"
 	"github.com/percybear/wal/internal/config"
 	"github.com/percybear/wal/internal/discovery"
 )
 
-// END: imports
-
-// START: begin
 func TestAgent(t *testing.T) {
+	var agents []*agent.Agent
+
 	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
 		CertFile:      config.ServerCertFile,
 		KeyFile:       config.ServerKeyFile,
@@ -42,11 +39,9 @@ func TestAgent(t *testing.T) {
 		ServerAddress: "127.0.0.1",
 	})
 	require.NoError(t, err)
-	// END: begin
 
-	// START: setup_agents
-	var agents []*Agent
 	for i := 0; i < 3; i++ {
+		// for i := 0; i < 3; i++ {
 		ports := discovery.GetPorts(2)
 		bindAddr := fmt.Sprintf("%s:%d", "127.0.0.1", ports[0])
 		rpcPort := ports[1]
@@ -62,8 +57,11 @@ func TestAgent(t *testing.T) {
 			)
 		}
 
-		agent, err := New(Config{
-			NodeName:        fmt.Sprintf("%d", i),
+		agent, err := agent.New(agent.Config{
+			NodeName: fmt.Sprintf("%d", i),
+			// START: agent_config
+			Bootstrap: i == 0,
+			// END: agent_config
 			StartJoinAddrs:  startJoinAddrs,
 			BindAddr:        bindAddr,
 			RPCPort:         rpcPort,
@@ -79,17 +77,16 @@ func TestAgent(t *testing.T) {
 	}
 	defer func() {
 		for _, agent := range agents {
-			err := agent.Shutdown()
-			require.NoError(t, err)
+			_ = agent.Shutdown()
 			require.NoError(t,
 				os.RemoveAll(agent.Config.DataDir),
 			)
 		}
 	}()
-	time.Sleep(3 * time.Second)
-	// END: setup_agents
 
-	// START: leader
+	// wait until agents have joined the cluster
+	time.Sleep(3 * time.Second)
+
 	leaderClient := client(t, agents[0], peerTLSConfig)
 	produceResponse, err := leaderClient.Produce(
 		context.Background(),
@@ -108,9 +105,7 @@ func TestAgent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, consumeResponse.Record.Value, []byte("foo"))
-	// END: leader
 
-	// START: follower
 	// wait until replication has finished
 	time.Sleep(3 * time.Second)
 
@@ -122,28 +117,31 @@ func TestAgent(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
 	require.Equal(t, consumeResponse.Record.Value, []byte("foo"))
+
+	// START: test_replication
+	consumeResponse, err = leaderClient.Consume(
+		context.Background(),
+		&api.ConsumeRequest{
+			Offset: produceResponse.Offset + 1,
+		},
+	)
+	require.Nil(t, consumeResponse)
+	require.Error(t, err)
+	got := grpc.Code(err)
+	want := grpc.Code(api.ErrOffsetOutOfRange{}.GRPCStatus().Err())
+	require.Equal(t, got, want)
+	// END: test_replication
 }
 
-// END: follower
-
-// START: client
-func client(
-	t *testing.T,
-	agent *Agent,
-	tlsConfig *tls.Config,
-) api.LogClient {
+func client(t *testing.T, agent *agent.Agent, tlsConfig *tls.Config) api.LogClient {
 	tlsCreds := credentials.NewTLS(tlsConfig)
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}
 	rpcAddr, err := agent.Config.RPCAddr()
 	require.NoError(t, err)
-	conn, err := grpc.Dial(fmt.Sprintf(
-		"%s",
-		rpcAddr,
-	), opts...)
+	conn, err := grpc.Dial(rpcAddr, opts...)
 	require.NoError(t, err)
 	client := api.NewLogClient(conn)
 	return client
 }
-
-// END: client
