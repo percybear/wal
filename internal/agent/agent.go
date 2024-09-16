@@ -115,7 +115,7 @@ func (a *Agent) setupMux() error {
 
 // END: setup_mux
 
-// START: setup_log_start
+// Create a new log for the raft stream layer.
 func (a *Agent) setupLog() error {
 	// Match connections based on their payload, specifically the raftRPC constant
 	raftLn := a.mux.Match(func(reader io.Reader) bool {
