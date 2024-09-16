@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -12,6 +14,9 @@ import (
 	"github.com/percybear/wal/internal/discovery"
 	"github.com/percybear/wal/internal/log"
 	"github.com/percybear/wal/internal/server"
+
+	// cmux is a generic Go library to multiplex connections based on their payload. Using cmux, you can
+	// serve gRPC, SSH, HTTPS, HTTP, Go RPC, and pretty much any other protocol on the same TCP listener.
 	"github.com/soheilhy/cmux"
 
 	"google.golang.org/grpc"
@@ -19,8 +24,10 @@ import (
 )
 
 type Config struct {
+	// ServerTLSConfig is the TLS config that secures the client-server connections.
 	ServerTLSConfig *tls.Config
-	PeerTLSConfig   *tls.Config
+	// PeerTLSConfig is the TLS config that secures the consensus protocol connections.
+	PeerTLSConfig *tls.Config
 	// DataDir stores the log and raft data.
 	DataDir string
 	// BindAddr is the address serf runs on.
@@ -89,18 +96,20 @@ func New(config Config) (*Agent, error) {
 }
 
 // START: setup_mux
+// Create your main listener and create a cmux for that listener, you can now use the cmux to match connections.
 func (a *Agent) setupMux() error {
 	rpcAddr := fmt.Sprintf(
 		":%d",
 		a.Config.RPCPort,
 	)
+	// Create the main listener.
 	ln, err := net.Listen("tcp", rpcAddr)
 	if err != nil {
 		return err
 	}
+	// Create a cmux for that listener, you can now use the cmux to match connections.
 	a.mux = cmux.New(ln)
-	// a.mux = cmux.New(ln)
-	// a.mux = cmux.New(ln)
+
 	return nil
 }
 
@@ -108,18 +117,18 @@ func (a *Agent) setupMux() error {
 
 // START: setup_log_start
 func (a *Agent) setupLog() error {
-	// raftLn := a.mux.Match(func(reader io.Reader) bool {
-	// 	b := make([]byte, 1)
-	// 	if _, err := reader.Read(b); err != nil {
-	// 		return false
-	// 	}
-	// 	return bytes.Compare(b, []byte{byte(log.RaftRPC)}) == 0
-	// })
-	// // END: setup_log_start
-	raftLn, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return err
-	}
+	// Match connections based on their payload, specifically the raftRPC constant
+	raftLn := a.mux.Match(func(reader io.Reader) bool {
+		b := make([]byte, 1)
+		if _, err := reader.Read(b); err != nil {
+			return false
+		}
+		// return bytes.Compare(b, []byte{byte(log.RaftRPC)}) == 0
+		return bytes.Equal(b, []byte{byte(log.RaftRPC)})
+	})
+	// if err != nil {
+	// 	return err
+	// }
 	// END: setup_log_start
 	// START: setup_log_end
 	logConfig := log.Config{}
@@ -130,6 +139,7 @@ func (a *Agent) setupLog() error {
 	)
 	logConfig.Raft.LocalID = raft.ServerID(a.Config.NodeName)
 	logConfig.Raft.Bootstrap = a.Config.Bootstrap
+	var err error
 	a.log, err = log.NewDistributedLog(
 		a.Config.DataDir,
 		logConfig,
@@ -162,23 +172,16 @@ func (a *Agent) setupServer() error {
 	if err != nil {
 		return err
 	}
-	// // START: setup_server
+
+	// Use the cmux to match connections.
+	// testLn := a.mux.Match(cmux.grpc())
 	grpcLn := a.mux.Match(cmux.Any())
 	go func() {
 		if err := a.server.Serve(grpcLn); err != nil {
 			_ = a.Shutdown()
 		}
 	}()
-	return err
-	// END: setup_server
-	// START: setup_server
-	// go func() {
-	// 	if err := a.server.Serve(a.mux); err != nil {
-	// 		_ = a.Shutdown()
-	// 	}
-	// }()
-	// return nil
-	// END: setup_server
+	return nil
 }
 
 // START: setup_membership

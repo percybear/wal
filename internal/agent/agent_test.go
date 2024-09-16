@@ -20,6 +20,8 @@ import (
 )
 
 func TestAgent(t *testing.T) {
+
+	// Agents here will form a consensus cluster
 	var agents []*agent.Agent
 
 	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
@@ -40,11 +42,21 @@ func TestAgent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// ports := discovery.GetPorts(2)
+	// bindAddr := fmt.Sprintf("%s:%d", "127.0.0.1", ports[0])
+	// rpcPort := ports[1]
+	// _ = fmt.Sprintf("%s:%d", "127.0.0.1", ports[1])
+
+	// Loop over the number of agents we want to create.
 	for i := 0; i < 3; i++ {
 		// for i := 0; i < 3; i++ {
+		// Each agent will have a unique bind address and RPC port.
+		// The bind address is used to listen for incoming connections.
+		// The RPC port is used to communicate with the other agents.
 		ports := discovery.GetPorts(2)
 		bindAddr := fmt.Sprintf("%s:%d", "127.0.0.1", ports[0])
 		rpcPort := ports[1]
+		_ = fmt.Sprintf("%s:%d", "127.0.0.1", ports[1])
 
 		dataDir, err := ioutil.TempDir("", "agent-test-log")
 		require.NoError(t, err)
