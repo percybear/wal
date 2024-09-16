@@ -123,14 +123,8 @@ func (a *Agent) setupLog() error {
 		if _, err := reader.Read(b); err != nil {
 			return false
 		}
-		// return bytes.Compare(b, []byte{byte(log.RaftRPC)}) == 0
 		return bytes.Equal(b, []byte{byte(log.RaftRPC)})
 	})
-	// if err != nil {
-	// 	return err
-	// }
-	// END: setup_log_start
-	// START: setup_log_end
 	logConfig := log.Config{}
 	logConfig.Raft.StreamLayer = log.NewStreamLayer(
 		raftLn,
@@ -151,7 +145,7 @@ func (a *Agent) setupLog() error {
 		return a.log.WaitForLeader(3 * time.Second)
 	}
 	return nil
-} // END: setup_log_end
+}
 
 func (a *Agent) setupServer() error {
 	authorizer := auth.New(
@@ -203,9 +197,8 @@ func (a *Agent) setupMembership() error {
 
 // END: setup_membership
 
-// START: serve
+// The serve starts multiplexing the listener. Serve blocks and perhaps should be invoked concurrently within a go routine.
 func (a *Agent) serve() error {
-	// if err := a.server.Serve(a.mux); err != nil {
 	if err := a.mux.Serve(); err != nil {
 		_ = a.Shutdown()
 		return err
@@ -213,8 +206,10 @@ func (a *Agent) serve() error {
 	return nil
 }
 
-// END: serve
-
+// The Shutdown ensures we shut down the agent once even if shutdown is called multiple times.i
+// Shutdown is managed gracefully by: Leaving the membership so that other instances in the cluster stop sending it events.
+// Closing the replicator so that it stops replicating.
+// Gracefully stopping the server and finally closing the log
 func (a *Agent) Shutdown() error {
 	a.shutdownLock.Lock()
 	defer a.shutdownLock.Unlock()
