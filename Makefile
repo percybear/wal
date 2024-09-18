@@ -65,7 +65,8 @@ test:
 # START: auth
 test: $(CONFIG_PATH)/policy.csv $(CONFIG_PATH)/model.conf
 #: START: begin
-	/usr/local/go1.22.1/bin/go test -v -race ./...
+	/usr/local/go1.22.1/bin/go test -race ./...
+#	/usr/local/go1.22.1/bin/go test ./...
 # END: auth
 
 .PHONY: compile

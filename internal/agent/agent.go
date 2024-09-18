@@ -118,6 +118,7 @@ func (a *Agent) setupMux() error {
 // setupLog creates a new log for the raft stream layer.
 func (a *Agent) setupLog() error {
 	// identify connections by reading the raft rpc constant.
+	// If mux matches this rule, pass the connection to the raft listener.
 	raftLn := a.mux.Match(func(reader io.Reader) bool {
 		b := make([]byte, 1)
 		if _, err := reader.Read(b); err != nil {
