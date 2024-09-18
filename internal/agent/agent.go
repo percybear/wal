@@ -1,3 +1,6 @@
+// Package agent sets up and connects all the different components that make this service work.
+// Each component (log, membership, replicator, and server) is responsible for an aspect of service behaviour.
+// The WAL agent is in effect the service coordinator it references and manages the components.
 package agent
 
 import (
@@ -23,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// A Config contains the configuration an agent needs to setup its components.
 type Config struct {
 	// ServerTLSConfig is the TLS config that secures the client-server connections.
 	ServerTLSConfig *tls.Config
@@ -42,7 +46,6 @@ type Config struct {
 	ACLPolicyFile  string
 	// START: config
 	Bootstrap bool
-	// END: config
 }
 
 func (c Config) RPCAddr() (string, error) {
@@ -53,22 +56,21 @@ func (c Config) RPCAddr() (string, error) {
 	return fmt.Sprintf("%s:%d", host, c.RPCPort), nil
 }
 
-// START: agent
+// A Agent is the component coordinator.
 type Agent struct {
-	Config Config
+	Config Config // config contains the configuration an agent needs to setup its componets.
 
-	mux        cmux.CMux
-	log        *log.DistributedLog
-	server     *grpc.Server
-	membership *discovery.Membership
+	mux        cmux.CMux             // cmux is a library to multiplex connections.
+	log        *log.DistributedLog   // log is the distributed log.
+	server     *grpc.Server          // server is the gRPC server.
+	membership *discovery.Membership // membership tracks the other agents in this consensus group.
 
-	shutdown     bool
-	shutdowns    chan struct{}
-	shutdownLock sync.Mutex
+	shutdown     bool          // shutdown is true when the agent is shutting down.
+	shutdowns    chan struct{} // shutdowns is a channel that is closed when the agent is shutting down.
+	shutdownLock sync.Mutex    // shutdownLock is a lock that protects the shutdown state.
 }
 
-// END: agent
-
+// New creates a new agent including its components.
 func New(config Config) (*Agent, error) {
 	a := &Agent{
 		Config:    config,
@@ -95,9 +97,9 @@ func New(config Config) (*Agent, error) {
 	return a, nil
 }
 
-// START: setup_mux
-// Create your main listener and create a cmux for that listener, you can now use the cmux to match connections.
+// setupMux create your listener and a cmux for that listener, you can use the cmux to match connections.
 func (a *Agent) setupMux() error {
+	//
 	rpcAddr := fmt.Sprintf(
 		":%d",
 		a.Config.RPCPort,
@@ -113,11 +115,9 @@ func (a *Agent) setupMux() error {
 	return nil
 }
 
-// END: setup_mux
-
-// Create a new log for the raft stream layer.
+// setupLog creates a new log for the raft stream layer.
 func (a *Agent) setupLog() error {
-	// Match connections based on their payload, specifically the raftRPC constant
+	// identify connections by reading the raft rpc constant.
 	raftLn := a.mux.Match(func(reader io.Reader) bool {
 		b := make([]byte, 1)
 		if _, err := reader.Read(b); err != nil {
@@ -147,6 +147,7 @@ func (a *Agent) setupLog() error {
 	return nil
 }
 
+// setupServer creates a new server for the gRPC connections.
 func (a *Agent) setupServer() error {
 	authorizer := auth.New(
 		a.Config.ACLModelFile,
@@ -168,7 +169,6 @@ func (a *Agent) setupServer() error {
 	}
 
 	// Use the cmux to match connections.
-	// testLn := a.mux.Match(cmux.grpc())
 	grpcLn := a.mux.Match(cmux.Any())
 	go func() {
 		if err := a.server.Serve(grpcLn); err != nil {
@@ -178,7 +178,7 @@ func (a *Agent) setupServer() error {
 	return nil
 }
 
-// START: setup_membership
+// setupMembership creates a new list of agents in this consensus group.
 func (a *Agent) setupMembership() error {
 	rpcAddr, err := a.Config.RPCAddr()
 	if err != nil {
@@ -195,9 +195,8 @@ func (a *Agent) setupMembership() error {
 	return err
 }
 
-// END: setup_membership
-
-// The serve starts multiplexing the listener. Serve blocks and perhaps should be invoked concurrently within a go routine.
+// serve starts multiplexing the listener.
+// Serve blocks and perhaps should be invoked concurrently within a go routine.
 func (a *Agent) serve() error {
 	if err := a.mux.Serve(); err != nil {
 		_ = a.Shutdown()
@@ -206,10 +205,9 @@ func (a *Agent) serve() error {
 	return nil
 }
 
-// The Shutdown ensures we shut down the agent once even if shutdown is called multiple times.i
-// Shutdown is managed gracefully by: Leaving the membership so that other instances in the cluster stop sending it events.
-// Closing the replicator so that it stops replicating.
-// Gracefully stopping the server and finally closing the log
+// Shutdown ensures we shut down the agent once even if shutdown is called multiple times.
+// Shutdown is managed gracefully by leaving this consensus group so that other members stop sending it events,
+// then closing the replicator so that it stops replicating, then stopping the server and finally closing the log.
 func (a *Agent) Shutdown() error {
 	a.shutdownLock.Lock()
 	defer a.shutdownLock.Unlock()

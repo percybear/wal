@@ -462,8 +462,7 @@ func (s *StreamLayer) Dial(
 	if err != nil {
 		return nil, err
 	}
-	// START: identify_raft
-	// identify to mux this is a raft rpc
+	// identify to mux this is a raft rpc.  Allows process reading byte{byte(RaftRPC)}) to know it is a raft rpc.
 	_, err = conn.Write([]byte{byte(RaftRPC)})
 	if err != nil {
 		return nil, err
