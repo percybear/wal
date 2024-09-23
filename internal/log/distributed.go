@@ -53,7 +53,6 @@ func (l *DistributedLog) setupLog(dataDir string) error {
 	return err
 }
 
-// START: setup_raft_intro
 func (l *DistributedLog) setupRaft(dataDir string) error {
 	fsm := &fsm{log: l.log}
 
@@ -67,9 +66,7 @@ func (l *DistributedLog) setupRaft(dataDir string) error {
 	if err != nil {
 		return err
 	}
-	// END: setup_raft_intro
 
-	// START: setup_raft_next
 	stableStore, err := raftboltdb.NewBoltStore(
 		filepath.Join(dataDir, "raft", "stable"),
 	)
@@ -259,6 +256,25 @@ func (l *DistributedLog) Close() error {
 }
 
 // END: log_close
+
+// START: get_servers
+func (l *DistributedLog) GetServers() ([]*api.Server, error) {
+	future := l.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return nil, err
+	}
+	var servers []*api.Server
+	for _, server := range future.Configuration().Servers {
+		servers = append(servers, &api.Server{
+			Id:       string(server.ID),
+			RpcAddr:  string(server.Address),
+			IsLeader: l.raft.Leader() == server.Address,
+		})
+	}
+	return servers, nil
+}
+
+// END: get_servers
 
 // START: fsm_intro
 var _ raft.FSM = (*fsm)(nil)
