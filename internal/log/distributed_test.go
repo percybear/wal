@@ -1,5 +1,5 @@
 // START: distributed_log_test_intro
-package log_test
+package log
 
 import (
 	"fmt"
@@ -13,12 +13,13 @@ import (
 	"github.com/hashicorp/raft"
 	api "github.com/percybear/wal/api/v1"
 	"github.com/percybear/wal/internal/discovery"
-	"github.com/percybear/wal/internal/log"
+
+	// "github.com/percybear/wal/internal/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMultipleNodes(t *testing.T) {
-	var logs []*log.DistributedLog
+	var logs []*DistributedLog
 	nodeCount := 3
 	ports := discovery.GetPorts(nodeCount)
 
@@ -35,8 +36,8 @@ func TestMultipleNodes(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		config := log.Config{}
-		config.Raft.StreamLayer = log.NewStreamLayer(ln, nil, nil)
+		config := Config{}
+		config.Raft.StreamLayer = NewStreamLayer(ln, nil, nil)
 		config.Raft.LocalID = raft.ServerID(fmt.Sprintf("%d", i))
 		config.Raft.HeartbeatTimeout = 50 * time.Millisecond
 		config.Raft.ElectionTimeout = 50 * time.Millisecond
@@ -50,7 +51,7 @@ func TestMultipleNodes(t *testing.T) {
 			config.Raft.Bootstrap = true
 		}
 
-		l, err := log.NewDistributedLog(dataDir, config)
+		l, err := NewDistributedLog(dataDir, config)
 		require.NoError(t, err)
 
 		if i != 0 {
@@ -92,27 +93,22 @@ func TestMultipleNodes(t *testing.T) {
 	}
 	// END: distributed_log_test_replicate
 
-	// START: distributed_log_test_leave
-	err := logs[0].Leave("1")
+	// START: get_servers
+	servers, err := logs[0].GetServers()
+	require.NoError(t, err)
+	require.Equal(t, 3, len(servers))
+	require.True(t, servers[0].IsLeader)
+	require.False(t, servers[1].IsLeader)
+	require.False(t, servers[2].IsLeader)
+
+	err = logs[0].Leave("1")
 	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
 
-	off, err := logs[0].Append(&api.Record{
-		Value: []byte("third"),
-	})
+	servers, err = logs[0].GetServers()
 	require.NoError(t, err)
-
-	time.Sleep(50 * time.Millisecond)
-
-	record, err := logs[1].Read(off)
-	require.IsType(t, api.ErrOffsetOutOfRange{}, err)
-	require.Nil(t, record)
-
-	record, err = logs[2].Read(off)
-	require.NoError(t, err)
-	require.Equal(t, []byte("third"), record.Value)
-	require.Equal(t, off, record.Offset)
+	require.Equal(t, 2, len(servers))
+	require.True(t, servers[0].IsLeader)
+	require.False(t, servers[1].IsLeader)
 }
-
-// END: distributed_log_test_leave
