@@ -8,13 +8,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
+
 	"google.golang.org/grpc/serviceconfig"
 
 	api "github.com/percybear/wal/api/v1"
 	"github.com/percybear/wal/internal/config"
-
 	"github.com/percybear/wal/internal/loadbalance"
 	"github.com/percybear/wal/internal/server"
 )
@@ -42,7 +43,9 @@ func TestResolver(t *testing.T) {
 	// END: setup_test
 
 	// START: mid_test
+
 	conn := &clientConn{}
+	// END: mid_test
 	tlsConfig, err = config.SetupTLSConfig(config.TLSConfig{
 		CertFile:      config.RootClientCertFile,
 		KeyFile:       config.RootClientKeyFile,
@@ -56,48 +59,42 @@ func TestResolver(t *testing.T) {
 		DialCreds: clientCreds,
 	}
 	r := &loadbalance.Resolver{}
-	var url url.URL
-	url.Scheme = loadbalance.Name
-	url.Host = l.Addr().String()
-	// // r.ResolveNow(opts)
-	// r.ResolveNow(resolver.ResolveNowOptions{})
-	// require.Equal(t, 0, len(conn.state.Addresses))
-	// END: mid_test
 	target := resolver.Target{
-		URL: url,
+		URL: url.URL{
+			Scheme: "proglog",
+			Path:   l.Addr().String(),
+		},
 	}
-	// START: mid_test
+
 	_, err = r.Build(
 		target,
-		// resolver.Target{URL: url},
-		conn.ClientConn,
+		conn,
 		opts,
 	)
+
 	require.NoError(t, err)
 	// END: mid_test
 
 	// START: finish_test
-	// wantState := resolver.State{
-	// 	Addresses: []resolver.Address{{
-	// 		Addr:       "localhost:9001",
-	// 		Attributes: attributes.New("is_leader", true),
-	// 	}, {
-	// 		Addr:       "localhost:9002",
-	// 		Attributes: attributes.New("is_leader", false),
-	// 	}},
-	// }
-	// require.Equal(t, wantState, conn.ClientConn.())
+	wantState := resolver.State{
+		Addresses: []resolver.Address{{
+			Addr:       "localhost:9001",
+			Attributes: attributes.New("is_leader", true),
+		}, {
+			Addr:       "localhost:9002",
+			Attributes: attributes.New("is_leader", false),
+		}},
+	}
+	require.Equal(t, wantState, conn.state)
 
-	// conn.state.Addresses = nil
-	// r.ResolveNow(resolver.ResolveNowOptions{})
-	// require.Equal(t, wantState, conn.state)
-
+	conn.state.Addresses = nil
+	r.ResolveNow(resolver.ResolveNowOptions{})
+	require.Equal(t, wantState, conn.state)
 }
 
 // END: finish_test
 
 // START: mock_deps
-
 type getServers struct{}
 
 func (s *getServers) GetServers() ([]*api.Server, error) {
@@ -113,19 +110,19 @@ func (s *getServers) GetServers() ([]*api.Server, error) {
 
 type clientConn struct {
 	resolver.ClientConn
-	// state resolver.State
+	state resolver.State
 }
 
-func (c *clientConn) UpdateState(state resolver.State) {
-	c.ClientConn.UpdateState(state) // infinitly recurcive
-	// c.state = state
+func (c *clientConn) UpdateState(state resolver.State) error {
+	c.state = state
+	return nil
 }
 
 func (c *clientConn) ReportError(err error) {}
 
 func (c *clientConn) NewAddress(addrs []resolver.Address) {}
 
-func (c *clientConn) NewServiceConfig(config string) {}
+// func (c *clientConn) NewServiceConfig(config string) {}
 
 func (c *clientConn) ParseServiceConfig(
 	config string,

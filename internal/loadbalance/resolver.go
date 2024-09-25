@@ -15,9 +15,17 @@ import (
 	api "github.com/percybear/wal/api/v1"
 )
 
+// The Resolver is a gRPC resolver because it implements the resolver.Resolver interface.
+// It watches the cluster membership changes and updates the client connection accordingly.
 type Resolver struct {
-	mu            sync.Mutex
-	clientConn    resolver.ClientConn
+	mu sync.Mutex
+	// clientConn is the users client connection, which is being watched by the resolver.
+	// It is set by the resolver.Build() method. gRPC passes it to the resolver to update with the
+	// latest servers (cluster membership changes) it discovers.
+	clientConn resolver.ClientConn
+	// resolverConn is the connection that the resolver uses to call the gRPC server.
+	// It is set by the resolver.Build() method. This is the connection that the resolver
+	// will use to call the gRPC server.
 	resolverConn  *grpc.ClientConn
 	serviceConfig *serviceconfig.ParseResult
 	logger        *zap.Logger
@@ -60,6 +68,9 @@ func (r *Resolver) Scheme() string {
 }
 
 func init() {
+	// Register the resolver builder in the resolver map so that gRPC knows how to
+	// use it. Note this function must only be called once, during initialization,
+	// it is not thread-safe.
 	resolver.Register(&Resolver{})
 }
 
@@ -68,6 +79,8 @@ func init() {
 // START: resolver_resolver
 var _ resolver.Resolver = (*Resolver)(nil)
 
+// ResolveNow is called by gRPC to resolve the target name (in this case,
+// just the service name) and update ClientConn with the resolved addresses.
 func (r *Resolver) ResolveNow(resolver.ResolveNowOptions) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

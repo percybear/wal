@@ -17,6 +17,7 @@ import (
 	"github.com/percybear/wal/internal/agent"
 	"github.com/percybear/wal/internal/config"
 	"github.com/percybear/wal/internal/discovery"
+	"github.com/percybear/wal/internal/loadbalance"
 )
 
 func TestAgent(t *testing.T) {
@@ -41,11 +42,6 @@ func TestAgent(t *testing.T) {
 		ServerAddress: "127.0.0.1",
 	})
 	require.NoError(t, err)
-
-	// ports := discovery.GetPorts(2)
-	// bindAddr := fmt.Sprintf("%s:%d", "127.0.0.1", ports[0])
-	// rpcPort := ports[1]
-	// _ = fmt.Sprintf("%s:%d", "127.0.0.1", ports[1])
 
 	// Loop over the number of agents we want to create.
 	for i := 0; i < 3; i++ {
@@ -109,6 +105,12 @@ func TestAgent(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
+	// START: test_change
+	// wait until replication has finished
+	time.Sleep(3 * time.Second)
+
+	// START: leader_check
 	consumeResponse, err := leaderClient.Consume(
 		context.Background(),
 		&api.ConsumeRequest{
@@ -117,9 +119,6 @@ func TestAgent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, consumeResponse.Record.Value, []byte("foo"))
-
-	// wait until replication has finished
-	time.Sleep(3 * time.Second)
 
 	followerClient := client(t, agents[1], peerTLSConfig)
 	consumeResponse, err = followerClient.Consume(
@@ -152,7 +151,12 @@ func client(t *testing.T, agent *agent.Agent, tlsConfig *tls.Config) api.LogClie
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}
 	rpcAddr, err := agent.Config.RPCAddr()
 	require.NoError(t, err)
-	conn, err := grpc.Dial(rpcAddr, opts...)
+	// conn, err := grpc.Dial(rpcAddr, opts...)
+	conn, err := grpc.Dial(fmt.Sprintf(
+		"%s:///%s",
+		loadbalance.Name,
+		rpcAddr,
+	), opts...)
 	require.NoError(t, err)
 	client := api.NewLogClient(conn)
 	return client
