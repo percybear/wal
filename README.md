@@ -9,4 +9,4 @@ golang: distributed WAL (Write Ahead Log)
 
 ## where to get help
 
-## who maintain wal
+## who maintains wal
