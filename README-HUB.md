@@ -31,3 +31,4 @@ docker pull docker.io/pmoth/wal:0.0.2
 ```console
 docker run -it docker.io/pmoth/wal:0.0.2
 ```
+
